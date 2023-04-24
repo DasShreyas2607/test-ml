@@ -13,7 +13,6 @@ dependencies:
   - bzip2=1.0.8=h7b6447c_0
   - ca-certificates=2021.4.13=h06a4308_1
   - certifi=2020.12.5=py36h06a4308_0
-  - cudatoolkit=10.2.89=hfd86e86_1
   - cython=0.29.23=py36h2531618_0
   - dataclasses=0.8=pyh4f3eec9_6
   - easydict=1.9=py_0

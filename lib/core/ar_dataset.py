@@ -8,6 +8,7 @@ from tensorboardX import SummaryWriter
 import torch
 import torch.nn.functional as F
 import torchvision.transforms as transforms
+from matplotlib import pyplot as plt
 import sys
 sys.path.append('./')
 
@@ -35,7 +36,7 @@ def PIL_loader(path):
 
 def get_models_params_new():
     models_root = 'pretrained/'
-    models_names = ['model_p5_w1_9938_9063.pth.tar']
+    models_names = ['model_p5_w1_9938_9470_6503.pth.tar']
     # models_names = ['model_p4_baseline_9938_9563.pth.tar',]
     # models_names = ['baseline_p4_arcface_9917.pth.tar',
                     # 'baseline_p4_cosface_9927.pth.tar']
@@ -45,7 +46,7 @@ def get_models_params_new():
         model_path = os.path.join(models_root, name)
         assert os.path.exists(model_path), 'invalid model name!'
 
-        checkpoint = torch.load(model_path)
+        checkpoint = torch.load(model_path, map_location=torch.device('cpu'))
         state_dict = checkpoint['state_dict']
 
         model_name = name.split('.')[0]
@@ -60,8 +61,8 @@ def get_feature(img, model, model_name, mask=None):
         mask = mask.unsqueeze(0)
         mask = mask.repeat(batch_size, 1, 1, 1)
 
-    img = img.to('cuda')
-    fc_mask, mask, _, fc = model(img, mask)
+    img = img.to('cpu')
+    fc_mask, mask, _im, fc = model(img, mask)
     fc, fc_mask = fc.to('cpu').squeeze(), fc_mask.to('cpu').squeeze()
     mask = mask.to('cpu')
 
@@ -93,13 +94,14 @@ def main():
 
     print('Args: \n' + json.dumps(vars(args), indent=4))
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = config.TRAIN.GPUS
-    gpus = [int(i) for i in config.TRAIN.GPUS.split(',')]
-    gpus = range(len(gpus))
+    # os.environ['CUDA_VISIBLE_DEVICES'] = config.TRAIN.GPUS
+    # gpus = [int(i) for i in config.TRAIN.GPUS.split(',')]
+    # gpus = range(len(gpus))
+    gpus = [0]
 
     transform = transforms.Compose([
         transforms.ToTensor(),  # range [0, 255] -> [0.0,1.0]
-        transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))  # range [0.0, 1.0] -> [-1.0,1.0]
+        #transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))  # range [0.0, 1.0] -> [-1.0,1.0]
     ])
 
     gallery_loader = torch.utils.data.DataLoader(
@@ -133,16 +135,47 @@ def main():
         pattern = int(model_name[model_name.find('p')+1])
         num_mask = len(utils.get_grids(*config.NETWORK.IMAGE_SIZE, pattern))
         model = LResNet50E_IR_FPN(num_mask=num_mask)
-        model = torch.nn.DataParallel(model, device_ids=gpus).cuda()
+        # model = torch.nn.DataParallel(model, device_ids=gpus).cuda()
 
-        model.module.load_state_dict(state_dict, strict=False)
-        model.eval()
-
+        model.load_state_dict(state_dict, strict=False)
+        
+        # p_image = Image.open('data/datasets/ARdata/images_112_96/prob_glass_all/m-001-10.bmp')
+        
+        # model(transform(p_image).unsqueeze(0))
+        # for features_, targets_ in glass_loader:
+        #     print(model(features_))
+        #     print('-------------')
+        print("#######")
+        #model.eval()
+        print("#######")
         features, masks, labels = preprocessing(glass_length, glass_loader, model, model_name)
-        identification(model, model_name, features, masks, labels, gallery_length, gallery_loader, 'glass')
 
+        identification(model, model_name, features, masks, labels, gallery_length, gallery_loader,'glass')
+        print("#######")
         features, masks, labels = preprocessing(scarf_length, scarf_loader, model, model_name)
-        identification(model, model_name, features, masks, labels, gallery_length, gallery_loader, 'scarf')
+
+        identification(model, model_name, features, masks, labels, gallery_length, gallery_loader,'scarf')
+
+def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r"):
+    """
+    Call in a loop to create terminal progress bar
+    @params:
+        iteration   - Required  : current iteration (Int)
+        total       - Required  : total iterations (Int)
+        prefix      - Optional  : prefix string (Str)
+        suffix      - Optional  : suffix string (Str)
+        decimals    - Optional  : positive number of decimals in percent complete (Int)
+        length      - Optional  : character length of bar (Int)
+        fill        - Optional  : bar fill character (Str)
+        printEnd    - Optional  : end character (e.g. "\r", "\r\n") (Str)
+    """
+    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+    filledLength = int(length * iteration // total)
+    bar = fill * filledLength + '-' * (length - filledLength)
+    print(f'\r{prefix} |{bar}| {percent}% {suffix}', end = printEnd)
+    # Print New Line on Complete
+    if iteration == total: 
+        print()
 
 def preprocessing(length, loader, model, model_name):
     features = torch.zeros(length // 2, 512)
@@ -150,8 +183,11 @@ def preprocessing(length, loader, model, model_name):
     labels = []
     begin = end = 0
     for batch_idx, (img, label) in enumerate(loader):
+        printProgressBar(batch_idx + 1, total = len(loader), prefix = 'Preprocessing:', suffix = 'Complete', length = 50)
+        # print(img[0][0].size())
+        # transforms.ToPILImage()(img[0][0]).show()
         fc, mask = get_feature(img, model, model_name)
-
+        
         begin = end
         end = begin + len(label[::2])
         features[begin:end] = fc
@@ -170,15 +206,17 @@ def match(fc, label, features_gallery, labels_gallery):
 
     return int(label == label_match)
 
-def identification(model, model_name, features, masks, labels, gallery_length, gallery_loader, probe_name):
+def identification(model, model_name, features, masks, labels, gallery_length, gallery_loader ,probe_name):
 
     mask_avg = torch.mean(masks, dim=0)
     features_gallery = torch.zeros(gallery_length // 2, 512)
     labels_gallery = []
     start = end = 0
     for batch_idx, (img, label_gallery) in enumerate(gallery_loader):
+        #transforms.ToPILImage()(img[0]).show()
+        # print(img.size())
+        printProgressBar(batch_idx + 1, total = len(img), prefix = 'Identifing:', suffix = 'Complete', length = 50)
         fc_gallery, _ = get_feature(img, model, model_name)
-
         begin = end
         end = begin + len(label_gallery[::2])
         features_gallery[begin:end] = fc_gallery
@@ -186,8 +224,19 @@ def identification(model, model_name, features, masks, labels, gallery_length, g
 
     length = len(labels)
     correct = 0
+    # transforms.ToPILImage()(masks[0]).show()
+    # print(features[0])
     for i, fc, mask, label in zip(range(length), features, masks, labels):
-        correct += match(fc, label, features_gallery, labels_gallery)
+        printProgressBar(batch_idx + 1, total = length, prefix = 'Matching:', suffix = 'Complete', length = 50)
+        print(fc, label, features_gallery, labels_gallery, fc.size())
+        # img = Image.fromarray(arr.reshape(28,28), 'L')
+        #transforms.ToPILImage()(fc.view(3, 112, 96)).show()
+        bool_match = match(fc, label, features_gallery, labels_gallery)
+        correct += bool_match
+        # plt.imshow(transforms.ToPILImage()(img_L[i][0]))
+        # plt.title(label)
+        # plt.show()
+        #print(fc, label)
     acc = float(correct) / length
     time_cur = time.strftime("%Y-%m-%d %H:%M:%S ", time.localtime())
     print('{}, model:{}, probe set:{}, rank 1 accuracy:{}'.format(time_cur, model_name, probe_name, acc))

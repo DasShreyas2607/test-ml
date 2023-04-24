@@ -10,9 +10,9 @@ import torch
 import torch.utils.data
 import torch.optim
 import torchvision.transforms as transforms
-import torch.backends.cudnn as cudnn
+# import torch.backends.cudnn as cudnn
 
-cudnn.benchmark = True
+# cudnn.benchmark = True
 
 import lib.core.utils as utils
 from lib.core.config import config
@@ -62,8 +62,8 @@ def parse_args():
     return args
 
 def reset_config(config, args):
-    if args.gpus:
-        config.TRAIN.GPUS = args.gpus
+    # if args.gpus:
+    #     config.TRAIN.GPUS = args.gpus
     if args.workers:
         config.TRAIN.WORKERS = args.workers
     if args.model:
@@ -108,7 +108,9 @@ def main():
     # --------------------------------------model----------------------------------------
     args = parse_args()
     reset_config(config, args)
-    os.environ['CUDA_VISIBLE_DEVICES'] = config.TRAIN.GPUS
+    #os.environ['CUDA_VISIBLE_DEVICES'] = config.TRAIN.GPUS
+    config.CUDNN.ENABLED = False
+    print(config)
 
     if args.debug:
         logger, final_output_dir, tb_log_dir = utils.create_temp_logger()
@@ -144,7 +146,7 @@ def main():
     else:
         raise ValueError('unknown optimizer type')
 
-    criterion = torch.nn.CrossEntropyLoss().cuda()
+    criterion = torch.nn.CrossEntropyLoss().cpu()
 
     start_epoch = config.TRAIN.START_EPOCH
     if config.NETWORK.PRETRAINED:
@@ -161,10 +163,10 @@ def main():
     # logger.info('{:<30}  {:<8}'.format('Computational complexity: ', macs))
     # logger.info('{:<30}  {:<8}'.format('Number of parameters: ', params))
 
-    gpus = [int(i) for i in config.TRAIN.GPUS.split(',')]
-    gpus = range(len(gpus))
-    model = torch.nn.DataParallel(model, device_ids=gpus).cuda()
-    classifier = torch.nn.DataParallel(classifier, device_ids=gpus).cuda()
+    # gpus = [int(i) for i in config.TRAIN.GPUS.split(',')]
+    # gpus = range(len(gpus))
+    # model = torch.nn.DataParallel(model, device_ids=gpus).cuda()
+    # classifier = torch.nn.DataParallel(classifier, device_ids=gpus).cuda()
 
     # logger.info(model)
     logger.info('Configs: \n' + json.dumps(config, indent=4, sort_keys=True))
@@ -193,7 +195,7 @@ def main():
     dataset = WebFace_LMDB(config.DATASET.LMDB_FILE, config.TRAIN.MODE, 
                            config.NETWORK.IMAGE_SIZE, config.TRAIN.PATTERN, 
                            ratio=args.ratio, transform=train_transform)
-
+    gpus = [0]
     train_loader = torch.utils.data.DataLoader(
         dataset=dataset,
         batch_size=config.TRAIN.BATCH_SIZE*len(gpus), 
@@ -212,6 +214,7 @@ def main():
     logger.info('Number of Identities: ' + str(config.DATASET.NUM_CLASS))
 
     # ----------------------------------------train----------------------------------------
+    device = torch.device('cpu')
     start = time.time()
     best_acc = 0.0
     best_model = False

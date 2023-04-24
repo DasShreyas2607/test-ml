@@ -18,8 +18,8 @@ def train(train_loader, model, classifier, criterion, optimizer, epoch, tb_log_d
     for batch_idx, data in enumerate(train_loader):
         img, label, mask_label, imgPaths = data
 
-        img, label = img.cuda(), label.cuda()
-        mask_label = mask_label.cuda()
+        img, label = img.cpu(), label.cpu()
+        mask_label = mask_label.cpu()
         
         features = model(img)
 

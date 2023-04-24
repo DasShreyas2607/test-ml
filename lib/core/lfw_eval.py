@@ -17,7 +17,7 @@ cudnn.benchmark = True
 logger = logging.getLogger(__name__)
 
 def extractDeepFeature(img, model, is_gray, mask=None, binary=False):
-    img = img.to('cuda')
+    img = img.to('cpu')
     fc_mask, mask, vec, fc = model(img, mask)
     fc, fc_mask = fc.to('cpu').squeeze(), fc_mask.to('cpu').squeeze()
     
@@ -167,7 +167,8 @@ def eval(model, model_path, config, test_loader, tb_log_dir, epoch, is_gray=Fals
         if 'baseline' in model_path or '_occ_' in model_path:
             indicator = 'Baseline'
         logger.info('using model:{}, indicator:{}'.format(model_path, indicator))
-        checkpoint = torch.load(model_path)
+        
+        checkpoint = torch.load(model_path, map_location=torch.device('cpu'))
         state_dict = checkpoint['state_dict']
 
         if isinstance(model, torch.nn.DataParallel):

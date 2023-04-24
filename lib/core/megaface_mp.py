@@ -49,7 +49,7 @@ def write_bin(path, feature):
 
 def get_models_params():
     models_root = 'pretrained/'
-    models_names = ['model_p5_w1_9938_9063.pth.tar']
+    models_names = ['model_p5_w1_9938_9470_6503.pth.tar']
 
     models_params = []
     for name in models_names:
@@ -65,7 +65,7 @@ def get_models_params():
     return models_params
 
 def extractDeepFeature(img, model, mask=None):
-    img = img.to('cuda')
+    img = img.to('cpu')
     fc_mask, mask, vec, fc = model(img, mask)
     fc, fc_mask = fc.to('cpu').squeeze(), fc_mask.to('cpu').squeeze()
     
@@ -159,12 +159,12 @@ def handledirs(args):
 
 def main():
     args = parse_arguments()
-    os.environ['CUDA_VISIBLE_DEVICES'] = args.gpus
-    gpus = [int(i) for i in args.gpus.split(',')]
-    args.gpus = gpus
+    # os.environ['cpu_VISIBLE_DEVICES'] = args.gpus
+    # gpus = [int(i) for i in args.gpus.split(',')]
+    # args.gpus = gpus
     print(args)
     handledirs(args)
-    cudnn.benchmark = True
+    cudnn.benchmark = False
     try:
         torch.multiprocessing.set_start_method('spawn')
     except RuntimeError:
@@ -179,7 +179,7 @@ def main():
 
 def test(rank, args, world_size):
     dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url, world_size=world_size, rank=rank)
-    torch.cuda.set_device(rank % len(args.gpus))
+    torch.cpu.set_device(rank % len(args.gpus))
 
     transform = transforms.Compose([
         transforms.ToTensor(),  # range [0, 255] -> [0.0,1.0]
@@ -217,7 +217,7 @@ def test(rank, args, world_size):
         num_mask = len(utils.get_grids(*config.NETWORK.IMAGE_SIZE, pattern))
         model = LResNet50E_IR_FPN(num_mask=num_mask)
         model.load_state_dict(state_dict, strict=True)
-        model = model.cuda()
+        # model = model.cpu()
         model.eval()
 
         if args.megaface_flag:

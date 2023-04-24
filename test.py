@@ -90,7 +90,7 @@ def main():
     # --------------------------------------model----------------------------------------
     args = parse_args()
     reset_config(config, args)
-    os.environ['CUDA_VISIBLE_DEVICES'] = config.TRAIN.GPUS
+    # os.environ['CUDA_VISIBLE_DEVICES'] = config.TRAIN.GPUS
     gpus = [int(i) for i in config.TRAIN.GPUS.split(',')]
     gpus = range(len(gpus))
 
@@ -123,7 +123,7 @@ def main():
         pattern = int(model_name[model_name.find('p')+1])
         num_mask = len(utils.get_grids(*config.NETWORK.IMAGE_SIZE, pattern))
         model = LResNet50E_IR_FPN(num_mask=num_mask)
-        model = torch.nn.DataParallel(model, device_ids=gpus).cuda()
+        # model = torch.nn.DataParallel(model, device_ids=gpus).cuda()
 
         model_path = os.path.join(model_root, model_name)
         lfw_eval(model, model_path, config, test_loader, 'temp', 0)

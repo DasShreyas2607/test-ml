@@ -15,7 +15,7 @@ config= edict()
 config.CUDNN = edict()
 config.CUDNN.BENCHMARK = True
 config.CUDNN.DETERMINISTIC = False
-config.CUDNN.ENABLED = True
+config.CUDNN.ENABLED = False
 
 # common params for NETWORK
 config.NETWORK = edict()
